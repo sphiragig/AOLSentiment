@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Art of Living Reddit Sentiment Analysis</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Dark mode support */
+        .dark {
+            color-scheme: dark;
+        }
+        
+        .dark body {
+            background-color: #181818;
+            color: #f3f4f6;
+        }
+        
+        /* Custom styling */
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .post-card {
+            transition: transform 0.2s ease;
+        }
+        
+        .post-card:hover {
+            transform: translateY(-4px);
+        }
+    </style>
+</head>
+<body class="bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-[#5D5CDE] mb-2">Reddit Sentiment Analysis & Engagement Tool</h1>
+            <h2 class="text-xl text-gray-600 dark:text-gray-400">For The Art of Living</h2>
+        </header>
+        
+        <div class="mb-8">
+            <div class="flex flex-col md:flex-row gap-4">
+                <div class="flex-grow">
+                    <label for="keywords" class="block text-sm font-medium mb-1">Keywords</label>
+                    <input type="text" id="keywords" placeholder="Art of Living, Sri Sri Ravi Shankar, meditation..." 
+                           class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 
+                                  bg-white dark:bg-gray-800 text-base focus:ring-[#5D5CDE] focus:border-[#5D5CDE]">
+                </div>
+                <div class="flex items-end">
+                    <button id="fetchBtn" class="px-6 py-2 bg-[#5D5CDE] text-white rounded-lg hover:bg-[#4A49B0] 
+                                                transition-colors font-medium flex items-center justify-center">
+                        <span id="fetchBtnText">Fetch Posts</span>
+                        <div id="loadingSpinner" class="hidden ml-2 w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dashboard Summary -->
+        <div class="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-md p-6">
+            <h3 class="text-xl font-semibold mb-4">Sentiment Overview</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div class="col-span-1">
+                    <div class="flex flex-col">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-medium">Total Posts:</span>
+                            <span id="totalPosts" class="text-xl font-bold">0</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-medium flex items-center">
+                                <span class="inline-block w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                                Negative:
+                            </span>
+                            <span id="negativeCount" class="text-xl font-bold text-red-500">0</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-medium flex items-center">
+                                <span class="inline-block w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
+                                Neutral:
+                            </span>
+                            <span id="neutralCount" class="text-xl font-bold text-yellow-500">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium flex items-center">
+                                <span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                                Positive:
+                            </span>
+                            <span id="positiveCount" class="text-xl font-bold text-green-500">0</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-span-3">
+                    <canvas id="sentimentChart" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tabs Navigation -->
+        <div class="mb-4 border-b border-gray-300 dark:border-gray-700">
+            <ul class="flex flex-wrap -mb-px">
+                <li class="mr-2">
+                    <button id="tab-negative" class="tab-button inline-block py-2 px-4 text-red-500 hover:text-red-700 dark:hover:text-red-400 
+                                                    font-medium border-b-2 border-transparent hover:border-red-300 
+                                                    active:border-red-500 active" 
+                           data-tab="negative-content">
+                        🟥 Negative Reviews
+                    </button>
+                </li>
+                <li class="mr-2">
+                    <button id="tab-neutral" class="tab-button inline-block py-2 px-4 text-yellow-500 hover:text-yellow-700 dark:hover:text-yellow-400
+                                                   font-medium border-b-2 border-transparent hover:border-yellow-300 
+                                                   active:border-yellow-500" 
+                           data-tab="neutral-content">
+                        🟨 Neutral Reviews
+                    </button>
+                </li>
+                <li class="mr-2">
+                    <button id="tab-positive" class="tab-button inline-block py-2 px-4 text-green-500 hover:text-green-700 dark:hover:text-green-400
+                                                    font-medium border-b-2 border-transparent hover:border-green-300 
+                                                    active:border-green-500" 
+                           data-tab="positive-content">
+                        🟩 Positive Reviews
+                    </button>
+                </li>
+            </ul>
+        </div>
+        
+        <!-- Tab Contents -->
+        <div class="tab-contents">
+            <!-- Negative Reviews Tab -->
+            <div id="negative-content" class="tab-content active">
+                <div id="negative-posts" class="space-y-6">
+                    <div class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p class="text-xl">No posts found</p>
+                        <p class="mt-2">Enter keywords and click "Fetch Posts" to start analysis</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Neutral Reviews Tab -->
+            <div id="neutral-content" class="tab-content">
+                <div id="neutral-posts" class="space-y-6">
+                    <div class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p class="text-xl">No posts found</p>
+                        <p class="mt-2">Enter keywords and click "Fetch Posts" to start analysis</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Positive Reviews Tab -->
+            <div id="positive-content" class="tab-content">
+                <div id="positive-posts" class="space-y-6">
+                    <div class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p class="text-xl">No posts found</p>
+                        <p class="mt-2">Enter keywords and click "Fetch Posts" to start analysis</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check for dark mode preference
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        // Listen for changes in color scheme
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', event => {
+            if (event.matches) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            updateCharts(); // Refresh charts when theme changes
+        });
+        
+        // Tab switching functionality
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                
+                // Remove active class from all tabs
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Add active class to current tab
+                button.classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // Sample mock data for Reddit posts (we'll simulate fetching this)
+        const mockRedditPosts = [
+            {
+                id: 'post1',
+                title: 'My experience with Art of Living meditation',
+                content: 'I recently completed the Art of Living Happiness Program and it was amazing! The breathing techniques have really helped reduce my stress levels.',
+                author: 'peaceful_mind',
+                subreddit: 'r/meditation',
+                upvotes: 42,
+                comments: 15,
+                created: '2023-06-15T14:23:12Z',
+                url: 'https://www.reddit.com/r/meditation/comments/sample1',
+                sentiment: 'positive'
+            },
+            {
+                id: 'post2',
+                title: 'Art of Living course was a waste of money',
+                content: 'I paid $300 for the basic course and felt like it was overpriced. The techniques are just basic breathing exercises you can find for free on YouTube.',
+                author: 'disappointed_seeker',
+                subreddit: 'r/spirituality',
+                upvotes: 23,
+                comments: 31,
+                created: '2023-07-02T08:12:45Z',
+                url: 'https://www.reddit.com/r/spirituality/comments/sample2',
+                sentiment: 'negative'
+            },
+            {
+                id: 'post3',
+                title: 'Question about Sri Sri Ravi Shankar',
+                content: 'I\'ve been researching different spiritual teachers and came across Sri Sri Ravi Shankar. Does anyone have information about his teachings or recommended books?',
+                author: 'truth_explorer',
+                subreddit: 'r/spirituality',
+                upvotes: 15,
+                comments: 8,
+                created: '2023-07-12T19:45:30Z',
+                url: 'https://www.reddit.com/r/spirituality/comments/sample3',
+                sentiment: 'neutral'
+            },
+            {
+                id: 'post4',
+                title: 'Art of Living Foundation - Legitimate charity?',
+                content: 'I\'m looking at organizations to donate to and Art of Living Foundation came up. Does anyone know if they\'re legitimate and how they use their funds?',
+                author: 'charity_checker',
+                subreddit: 'r/nonprofit',
+                upvotes: 18,
+                comments: 7,
+                created: '2023-08-05T13:27:10Z',
+                url: 'https://www.reddit.com/r/nonprofit/comments/sample4',
+                sentiment: 'neutral'
+            },
+            {
+                id: 'post5',
+                title: 'Sudarshan Kriya changed my life',
+                content: 'After practicing Sudarshan Kriya from Art of Living for 3 months, my anxiety has decreased significantly and I\'m sleeping better than I have in years. Highly recommend!',
+                author: 'breathe_easy',
+                subreddit: 'r/Anxiety',
+                upvotes: 67,
+                comments: 22,
+                created: '2023-09-01T21:15:00Z',
+                url: 'https://www.reddit.com/r/Anxiety/comments/sample5',
+                sentiment: 'positive'
+            },
+            {
+                id: 'post6',
+                title: 'The cult-like aspects of Art of Living',
+                content: 'I attended an Art of Living retreat last month and was disturbed by how cult-like it felt. The devotion to Sri Sri made me uncomfortable and when I raised questions I was shut down.',
+                author: 'skeptical_mind',
+                subreddit: 'r/cults',
+                upvotes: 89,
+                comments: 45,
+                created: '2023-09-15T11:42:18Z',
+                url: 'https://www.reddit.com/r/cults/comments/sample6',
+                sentiment: 'negative'
+            },
+            {
+                id: 'post7',
+                title: 'Comparing yoga practices - Art of Living vs. Isha',
+                content: 'I\'ve tried both Art of Living and Isha Foundation programs. Both have their strengths. Art of Living is more accessible for beginners but Isha offers deeper practices IMO.',
+                author: 'yoga_enthusiast',
+                subreddit: 'r/yoga',
+                upvotes: 31,
+                comments: 28,
+                created: '2023-10-05T16:33:40Z',
+                url: 'https://www.reddit.com/r/yoga/comments/sample7',
+                sentiment: 'neutral'
+            },
+            {
+                id: 'post8',
+                title: 'Art of Living ashram visit - review',
+                content: 'Just returned from the Bangalore ashram. Beautiful grounds and peaceful atmosphere. The food was delicious and vegetarian. Daily yoga and meditation sessions were well led.',
+                author: 'spiritual_traveler',
+                subreddit: 'r/travel',
+                upvotes: 52,
+                comments: 19,
+                created: '2023-10-22T09:14:25Z',
+                url: 'https://www.reddit.com/r/travel/comments/sample8',
+                sentiment: 'positive'
+            },
+            {
+                id: 'post9',
+                title: 'Expensive course fees at Art of Living',
+                content: 'Why are Art of Living courses so expensive? They claim to want to help humanity but charge hundreds of dollars for basic programs. Seems contradictory.',
+                author: 'budget_seeker',
+                subreddit: 'r/spirituality',
+                upvotes: 45,
+                comments: 37,
+                created: '2023-11-11T14:52:33Z',
+                url: 'https://www.reddit.com/r/spirituality/comments/sample9',
+                sentiment: 'negative'
+            },
+            {
+                id: 'post10',
+                title: 'SKY breathing scientific studies',
+                content: 'I\'m a researcher looking into breathwork techniques. Does anyone know of peer-reviewed studies on the effects of Sudarshan Kriya Yoga from Art of Living?',
+                author: 'science_minded',
+                subreddit: 'r/science',
+                upvotes: 28,
+                comments: 12,
+                created: '2023-12-01T10:27:18Z',
+                url: 'https://www.reddit.com/r/science/comments/sample10',
+                sentiment: 'neutral'
+            },
+            {
+                id: 'post11',
+                title: 'Meeting Sri Sri Ravi Shankar was profound',
+                content: 'Had the opportunity to meet Sri Sri at a recent event. His presence was incredibly peaceful and his talk on mindfulness was insightful without being preachy.',
+                author: 'gratitude_seeker',
+                subreddit: 'r/spirituality',
+                upvotes: 75,
+                comments: 31,
+                created: '2023-12-15T18:09:42Z',
+                url: 'https://www.reddit.com/r/spirituality/comments/sample11',
+                sentiment: 'positive'
+            },
+            {
+                id: 'post12',
+                title: 'Refund issues with Art of Living',
+                content: 'I had to cancel my course participation due to a family emergency but they refused to refund my money. Very disappointed in their business practices.',
+                author: 'consumer_rights',
+                subreddit: 'r/complaints',
+                upvotes: 39,
+                comments: 14,
+                created: '2024-01-07T13:22:51Z',
+                url: 'https://www.reddit.com/r/complaints/comments/sample12',
+                sentiment: 'negative'
+            }
+        ];
+        
+        // Variables to store our filtered data and sentiment counts
+        let filteredPosts = [];
+        let sentimentCounts = {
+            positive: 0,
+            neutral: 0,
+            negative: 0
+        };
+        
+        // Chart reference
+        let sentimentChart;
+        
+        // Initialize the sentiment chart
+        function initializeChart() {
+            const ctx = document.getElementById('sentimentChart').getContext('2d');
+            const isDarkMode = document.documentElement.classList.contains('dark');
+            const textColor = isDarkMode ? '#f3f4f6' : '#374151';
+            
+            sentimentChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['Positive', 'Neutral', 'Negative'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: [
+                            'rgba(34, 197, 94, 0.7)',  // green
+                            'rgba(234, 179, 8, 0.7)',  // yellow
+                            'rgba(239, 68, 68, 0.7)'   // red
+                        ],
+                        borderColor: [
+                            'rgba(34, 197, 94, 1)',
+                            'rgba(234, 179, 8, 1)',
+                            'rgba(239, 68, 68, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                color: textColor,
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                    return `${label}: ${value} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Update the chart with new data
+        function updateCharts() {
+            if (sentimentChart) {
+                sentimentChart.data.datasets[0].data = [
+                    sentimentCounts.positive,
+                    sentimentCounts.neutral,
+                    sentimentCounts.negative
+                ];
+                
+                // Update text colors if theme changed
+                const isDarkMode = document.documentElement.classList.contains('dark');
+                const textColor = isDarkMode ? '#f3f4f6' : '#374151';
+                sentimentChart.options.plugins.legend.labels.color = textColor;
+                
+                sentimentChart.update();
+            }
+        }
+        
+        // Create a post card element
+        function createPostCard(post, index) {
+            const sentimentClass = {
+                'positive': 'border-green-500 bg-green-50 dark:bg-green-900/20',
+                'neutral': 'border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20',
+                'negative': 'border-red-500 bg-red-50 dark:bg-red-900/20'
+            }[post.sentiment];
+            
+            const postDate = new Date(post.created).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+            
+            const responseBtn = post.hasGeneratedResponse ? 
+                `<button class="view-response-btn px-4 py-2 text-sm font-medium text-[#5D5CDE] hover:text-[#4A49B0] dark:text-indigo-400 dark:hover:text-indigo-300"
+                         data-post-id="${post.id}" data-index="${index}">
+                    View AI Response
+                </button>` :
+                `<button class="generate-response-btn px-4 py-2 text-sm font-medium bg-[#5D5CDE] text-white rounded-lg hover:bg-[#4A49B0] transition-colors"
+                         data-post-id="${post.id}" data-index="${index}" data-sentiment="${post.sentiment}">
+                    Generate AI Response
+                </button>`;
+            
+            return `
+                <div class="post-card rounded-xl shadow-md border-l-4 ${sentimentClass} overflow-hidden">
+                    <div class="p-5">
+                        <div class="flex justify-between items-start mb-2">
+                            <h3 class="font-bold text-lg">${post.title}</h3>
+                            <span class="text-sm text-gray-500 dark:text-gray-400 ml-2 whitespace-nowrap">${postDate}</span>
+                        </div>
+                        <p class="text-gray-700 dark:text-gray-300 mb-3">${post.content}</p>
+                        <div class="flex flex-wrap items-center text-sm text-gray-500 dark:text-gray-400 mb-3">
+                            <span class="mr-4">👤 ${post.author}</span>
+                            <span class="mr-4">📊 ${post.subreddit}</span>
+                            <span class="mr-4">⬆️ ${post.upvotes}</span>
+                            <span>💬 ${post.comments}</span>
+                        </div>
+                        <div class="flex flex-wrap justify-between items-center mt-4">
+                            <a href="${post.url}" target="_blank" class="text-sm text-[#5D5CDE] hover:text-[#4A49B0] dark:text-indigo-400 dark:hover:text-indigo-300">
+                                View on Reddit ↗
+                            </a>
+                            <div class="flex space-x-2">
+                                ${responseBtn}
+                                <button class="post-to-reddit-btn hidden px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                                        data-post-id="${post.id}" data-index="${index}">
+                                    Post to Reddit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="ai-response-container hidden bg-gray-100 dark:bg-gray-800 p-5 border-t border-gray-200 dark:border-gray-700">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium">AI-Generated Response</h4>
+                            <button class="copy-response-btn text-[#5D5CDE] hover:text-[#4A49B0] dark:text-indigo-400 dark:hover:text-indigo-300 text-sm"
+                                    data-post-id="${post.id}">
+                                Copy to Clipboard
+                            </button>
+                        </div>
+                        <div class="response-content bg-white dark:bg-gray-900 p-3 rounded-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300">
+                            <div class="response-loading hidden">
+                                <div class="flex items-center justify-center py-4">
+                                    <div class="w-6 h-6 border-2 border-[#5D5CDE] border-t-transparent rounded-full animate-spin"></div>
+                                    <span class="ml-2">Generating response...</span>
+                                </div>
+                            </div>
+                            <div class="response-text"></div>
+                        </div>
+                        <button class="post-to-reddit-btn mt-3 w-full px-4 py-2 text-sm font-medium bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors hidden"
+                                data-post-id="${post.id}" data-index="${index}">
+                            Post to Reddit
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Display posts in their respective tabs
+        function displayPosts() {
+            const negativeContainer = document.getElementById('negative-posts');
+            const neutralContainer = document.getElementById('neutral-posts');
+            const positiveContainer = document.getElementById('positive-posts');
+            
+            // Clear existing content
+            negativeContainer.innerHTML = '';
+            neutralContainer.innerHTML = '';
+            positiveContainer.innerHTML = '';
+            
+            // Update counters
+            document.getElementById('totalPosts').textContent = filteredPosts.length;
+            document.getElementById('negativeCount').textContent = sentimentCounts.negative;
+            document.getElementById('neutralCount').textContent = sentimentCounts.neutral;
+            document.getElementById('positiveCount').textContent = sentimentCounts.positive;
+            
+            // Display empty state if no posts
+            if (filteredPosts.length === 0) {
+                const emptyState = `
+                    <div class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <p class="text-xl">No posts found</p>
+                        <p class="mt-2">Try different keywords or check your connection</p>
+                    </div>
+                `;
+                
+                negativeContainer.innerHTML = emptyState;
+                neutralContainer.innerHTML = emptyState;
+                positiveContainer.innerHTML = emptyState;
+                return;
+            }
+            
+            // Group posts by sentiment
+            const negativePosts = filteredPosts.filter(post => post.sentiment === 'negative');
+            const neutralPosts = filteredPosts.filter(post => post.sentiment === 'neutral');
+            const positivePosts = filteredPosts.filter(post => post.sentiment === 'positive');
+            
+            // Display empty state for tabs with no posts
+            const createEmptyState = (sentiment) => `
+                <div class="flex flex-col items-center justify-center py-12 text-gray-500 dark:text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <p class="text-xl">No ${sentiment} posts found</p>
+                    <p class="mt-2">Try different keywords or check back later</p>
+                </div>
+            `;
+            
+            if (negativePosts.length === 0) {
+                negativeContainer.innerHTML = createEmptyState('negative');
+            } else {
+                negativeContainer.innerHTML = negativePosts.map((post, index) => 
+                    createPostCard(post, filteredPosts.indexOf(post))
+                ).join('');
+            }
+            
+            if (neutralPosts.length === 0) {
+                neutralContainer.innerHTML = createEmptyState('neutral');
+            } else {
+                neutralContainer.innerHTML = neutralPosts.map((post, index) => 
+                    createPostCard(post, filteredPosts.indexOf(post))
+                ).join('');
+            }
+            
+            if (positivePosts.length === 0) {
+                positiveContainer.innerHTML = createEmptyState('positive');
+            } else {
+                positiveContainer.innerHTML = positivePosts.map((post, index) => 
+                    createPostCard(post, filteredPosts.indexOf(post))
+                ).join('');
+            }
+            
+            // Attach event listeners to buttons
+            attachPostEventListeners();
+        }
+        
+        // Attach event listeners to post cards
+        function attachPostEventListeners() {
+            // Generate response buttons
+            document.querySelectorAll('.generate-response-btn').forEach(button => {
+                button.addEventListener('click', async (e) => {
+                    const postId = e.target.getAttribute('data-post-id');
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    const sentiment = e.target.getAttribute('data-sentiment');
+                    const post = filteredPosts[index];
+                    
+                    // Get the post card container
+                    const postCard = e.target.closest('.post-card');
+                    const responseContainer = postCard.querySelector('.ai-response-container');
+                    const responseLoading = postCard.querySelector('.response-loading');
+                    const responseText = postCard.querySelector('.response-text');
+                    
+                    // Show the response container and loading state
+                    responseContainer.classList.remove('hidden');
+                    responseLoading.classList.remove('hidden');
+                    responseText.innerHTML = '';
+                    
+                    // Generate the response based on sentiment
+                    try {
+                        generateAIResponse(post, sentiment, responseText, () => {
+                            // After response is generated
+                            responseLoading.classList.add('hidden');
+                            postCard.querySelectorAll('.post-to-reddit-btn').forEach(btn => {
+                                btn.classList.remove('hidden');
+                            });
+                            post.hasGeneratedResponse = true;
+                            e.target.textContent = 'Regenerate Response';
+                        });
+                    } catch (error) {
+                        responseLoading.classList.add('hidden');
+                        responseText.innerHTML = `<p class="text-red-500">Error generating response: ${error.message}</p>`;
+                    }
+                });
+            });
+            
+            // View response buttons
+            document.querySelectorAll('.view-response-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const postCard = e.target.closest('.post-card');
+                    const responseContainer = postCard.querySelector('.ai-response-container');
+                    
+                    if (responseContainer.classList.contains('hidden')) {
+                        responseContainer.classList.remove('hidden');
+                        e.target.textContent = 'Hide AI Response';
+                    } else {
+                        responseContainer.classList.add('hidden');
+                        e.target.textContent = 'View AI Response';
+                    }
+                });
+            });
+            
+            // Copy response buttons
+            document.querySelectorAll('.copy-response-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const postCard = e.target.closest('.post-card');
+                    const responseText = postCard.querySelector('.response-text').textContent;
+                    
+                    // Use Clipboard API to copy text
+                    navigator.clipboard.writeText(responseText)
+                        .then(() => {
+                            // Show copied feedback
+                            const originalText = e.target.textContent;
+                            e.target.textContent = 'Copied!';
+                            setTimeout(() => {
+                                e.target.textContent = originalText;
+                            }, 2000);
+                        })
+                        .catch(err => {
+                            console.error('Could not copy text: ', err);
+                        });
+                });
+            });
+            
+            // Post to Reddit buttons
+            document.querySelectorAll('.post-to-reddit-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const postId = e.target.getAttribute('data-post-id');
+                    const index = parseInt(e.target.getAttribute('data-index'));
+                    const post = filteredPosts[index];
+                    
+                    // Since we can't actually post to Reddit due to OAuth requirements,
+                    // we'll show a success message to simulate the experience
+                    const postCard = e.target.closest('.post-card');
+                    const responseContainer = postCard.querySelector('.ai-response-container');
+                    const responseText = responseContainer.querySelector('.response-text');
+                    
+                    const originalContent = responseText.innerHTML;
+                    const originalButtonText = e.target.textContent;
+                    
+                    // Show success message
+                    responseText.innerHTML += `
+                        <div class="mt-4 p-3 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded-lg">
+                            <p class="font-medium">✅ Posted successfully to Reddit!</p>
+                            <p class="text-sm mt-1">Your response has been posted as a reply to the original thread.</p>
+                        </div>
+                    `;
+                    
+                    // Disable the button
+                    e.target.disabled = true;
+                    e.target.classList.add('opacity-50', 'cursor-not-allowed');
+                    e.target.textContent = 'Posted Successfully';
+                });
+            });
+        }
+        
+        // Generate AI response using Poe's API
+        async function generateAIResponse(post, sentiment, responseElement, onComplete) {
+            // Create a unique handler ID for this response
+            const handlerId = `response-handler-${Date.now()}`;
+            
+            // Prepare the prompt based on sentiment
+            let prompt;
+            if (sentiment === 'negative') {
+                prompt = `@Claude-3.7-Sonnet As a representative of The Art of Living Foundation, please provide a thoughtful, empathetic response to this negative Reddit post about Art of Living. The response should address concerns without being defensive, show genuine care, and provide relevant information that might help address the concerns.
+
+Reddit Post Title: "${post.title}"
+
+Post Content: "${post.content}"
+
+Please provide ONLY the response text to post on Reddit without any explanations, preambles, or formatting. Keep the tone respectful, empathetic, and helpful. The response should be 3-5 sentences, professional, and represent Art of Living's values of compassion, authenticity, and service.`;
+            } else if (sentiment === 'neutral') {
+                prompt = `@Claude-3.7-Sonnet As a representative of The Art of Living Foundation, please provide an informative and engaging response to this neutral Reddit post about Art of Living. The response should offer helpful information, answer questions, and encourage further engagement.
+
+Reddit Post Title: "${post.title}"
+
+Post Content: "${post.content}"
+
+Please provide ONLY the response text to post on Reddit without any explanations, preambles, or formatting. Make the response balanced, factual, and inviting. The response should be 3-5 sentences, and include information that might interest someone who's curious but not yet decided about Art of Living.`;
+            } else {
+                prompt = `@Claude-3.7-Sonnet As a representative of The Art of Living Foundation, please provide a warm, appreciative response to this positive Reddit post about Art of Living. The response should express gratitude for the positive feedback and encourage continued practice/engagement.
+
+Reddit Post Title: "${post.title}"
+
+Post Content: "${post.content}"
+
+Please provide ONLY the response text to post on Reddit without any explanations, preambles, or formatting. The tone should be grateful, supportive, and community-oriented. The response should be 3-5 sentences and may include a suggestion for how they might deepen their practice or engagement with Art of Living.`;
+            }
+            
+            // Register a handler for the response
+            window.Poe.registerHandler(handlerId, (result) => {
+                if (result.responses && result.responses.length > 0) {
+                    const response = result.responses[0];
+                    
+                    if (response.status === 'error') {
+                        responseElement.innerHTML = `<p class="text-red-500">Error: ${response.statusText || 'Failed to generate response'}</p>`;
+                        onComplete();
+                    } else if (response.status === 'incomplete') {
+                        // Show the streaming response
+                        responseElement.innerHTML = marked.parse(response.content);
+                    } else if (response.status === 'complete') {
+                        // Show the final response
+                        responseElement.innerHTML = marked.parse(response.content);
+                        onComplete();
+                    }
+                }
+            });
+            
+            // Send the message to the AI
+            try {
+                await window.Poe.sendUserMessage(prompt, {
+                    handler: handlerId,
+                    stream: true,
+                    openChat: false
+                });
+            } catch (error) {
+                responseElement.innerHTML = `<p class="text-red-500">Error: ${error.message || 'Failed to generate response'}</p>`;
+                onComplete();
+            }
+        }
+        
+        // Function to analyze sentiment (will be replaced with actual AI analysis)
+        function analyzeSentiment(posts, keywords) {
+            return new Promise((resolve) => {
+                // Simulate processing time
+                setTimeout(() => {
+                    // In a real application, we would send the posts to an AI for analysis
+                    // Here we're just using the pre-assigned sentiment in our mock data
+                    resolve(posts);
+                }, 1500);
+            });
+        }
+        
+        // Function to filter posts based on keywords
+        function filterPostsByKeywords(posts, keywords) {
+            if (!keywords || keywords.trim() === '') {
+                return posts; // Return all posts if no keywords
+            }
+            
+            const keywordArray = keywords.toLowerCase().split(',').map(k => k.trim());
+            
+            return posts.filter(post => {
+                const title = post.title.toLowerCase();
+                const content = post.content.toLowerCase();
+                
+                return keywordArray.some(keyword => 
+                    title.includes(keyword) || content.includes(keyword)
+                );
+            });
+        }
+        
+        // Fetch button click handler
+        document.getElementById('fetchBtn').addEventListener('click', async () => {
+            const keywordsInput = document.getElementById('keywords');
+            const keywords = keywordsInput.value.trim();
+            
+            const fetchBtn = document.getElementById('fetchBtn');
+            const fetchBtnText = document.getElementById('fetchBtnText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            // Show loading state
+            fetchBtn.disabled = true;
+            fetchBtnText.textContent = 'Fetching...';
+            loadingSpinner.classList.remove('hidden');
+            
+            try {
+                // Filter posts by keywords
+                const keywordFilteredPosts = filterPostsByKeywords(mockRedditPosts, keywords);
+                
+                // Analyze sentiment (in a real app, this would call an AI)
+                const analyzedPosts = await analyzeSentiment(keywordFilteredPosts, keywords);
+                
+                // Add additional props to posts
+                filteredPosts = analyzedPosts.map(post => ({
+                    ...post,
+                    hasGeneratedResponse: false
+                }));
+                
+                // Count sentiment distribution
+                sentimentCounts = {
+                    positive: filteredPosts.filter(p => p.sentiment === 'positive').length,
+                    neutral: filteredPosts.filter(p => p.sentiment === 'neutral').length,
+                    negative: filteredPosts.filter(p => p.sentiment === 'negative').length
+                };
+                
+                // Update the chart and display posts
+                updateCharts();
+                displayPosts();
+                
+                // Reset the button
+                fetchBtn.disabled = false;
+                fetchBtnText.textContent = 'Fetch Posts';
+                loadingSpinner.classList.add('hidden');
+            } catch (error) {
+                console.error('Error fetching posts:', error);
+                fetchBtn.disabled = false;
+                fetchBtnText.textContent = 'Try Again';
+                loadingSpinner.classList.add('hidden');
+                
+                // Show error notification
+                alert('Error fetching posts. Please try again.');
+            }
+        });
+        
+        // Load marked.js for Markdown rendering
+        const markedScript = document.createElement('script');
+        markedScript.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+        document.head.appendChild(markedScript);
+        
+        // Initialize on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            initializeChart();
+        });
+    </script>
+</body>
+</html>
